@@ -314,6 +314,15 @@
                     <h3>Bottom Fins (Drag to Reorder)</h3>
                     <div id="bottom-fins-list" class="fin-list"></div>
                 </div>
+
+                <div class="control-section">
+                    <h3>Save / Load</h3>
+                    <button onclick="saveData()">💾 Save Diagram</button>
+                    <div style="margin-top: 10px;">
+                        <input type="file" id="load-file" accept=".json" style="display: none;" onchange="loadData(event)">
+                        <button onclick="document.getElementById('load-file').click()">📂 Load Diagram</button>
+                    </div>
+                </div>
             </div>
 
             <div class="diagram-container">
@@ -322,7 +331,8 @@
                     <p>
                         <strong>Add Fins:</strong> Use the controls on the left to add causes to the top or bottom of the fishbone.<br>
                         <strong>Reorder:</strong> Drag and drop fins in the lists to change their timeline sequence.<br>
-                        <strong>Remove:</strong> Click the delete button on any fin to remove it.
+                        <strong>Remove:</strong> Click the delete button on any fin to remove it.<br>
+                        <strong>Save/Load:</strong> Save your diagram as a JSON file or load a previously saved diagram.
                     </p>
                 </div>
                 <svg id="fishbone-svg"></svg>
@@ -618,6 +628,61 @@
                 .attr('text-anchor', 'middle')
                 .attr('transform', `rotate(-90, ${margin.left - 30}, ${spineY})`)
                 .text('← Timeline Sequence →');
+        }
+
+        // Save diagram data to JSON file
+        function saveData() {
+            const dataStr = JSON.stringify(diagramData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `fishbone-diagram-${Date.now()}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            alert('Diagram saved successfully!');
+        }
+
+        // Load diagram data from JSON file
+        function loadData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const loadedData = JSON.parse(e.target.result);
+
+                    // Validate the loaded data structure
+                    if (loadedData.mainEffect !== undefined &&
+                        Array.isArray(loadedData.topFins) &&
+                        Array.isArray(loadedData.bottomFins)) {
+
+                        diagramData = loadedData;
+
+                        // Update the main effect input field
+                        document.getElementById('main-effect').value = diagramData.mainEffect;
+
+                        // Re-render everything
+                        renderFinLists();
+                        updateDiagram();
+
+                        alert('Diagram loaded successfully!');
+                    } else {
+                        alert('Invalid file format. Please load a valid fishbone diagram JSON file.');
+                    }
+                } catch (error) {
+                    alert('Error loading file: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+
+            // Reset the file input so the same file can be loaded again if needed
+            event.target.value = '';
         }
 
         // Allow Enter key to add fins
