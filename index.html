@@ -549,16 +549,32 @@
                 .attr('text-anchor', 'middle')
                 .text(effectText);
 
-            // Calculate spacing for fins
-            const totalFins = Math.max(diagramData.topFins.length, diagramData.bottomFins.length);
+            // Combine all fins into a single timeline array
+            const allFins = [];
+
+            // Add top fins with position marker
+            diagramData.topFins.forEach(fin => {
+                allFins.push({ ...fin, position: 'top' });
+            });
+
+            // Add bottom fins with position marker
+            diagramData.bottomFins.forEach(fin => {
+                allFins.push({ ...fin, position: 'bottom' });
+            });
+
+            // Sort by timestamp (id) to get chronological order
+            allFins.sort((a, b) => a.id - b.id);
+
+            // Calculate spacing for fins based on total combined fins
+            const totalFins = allFins.length;
             const spineLength = spineEndX - spineStartX - 50;
             const finSpacing = totalFins > 0 ? spineLength / (totalFins + 1) : 0;
 
-            // Draw top fins
-            diagramData.topFins.forEach((fin, index) => {
+            // Draw all fins in chronological order
+            allFins.forEach((fin, index) => {
                 const x = spineStartX + (index + 1) * finSpacing;
                 const finLength = 80;
-                const finAngle = -45; // degrees
+                const finAngle = fin.position === 'top' ? -45 : 45; // degrees
                 const radians = (finAngle * Math.PI) / 180;
                 const endX = x + finLength * Math.cos(radians);
                 const endY = spineY + finLength * Math.sin(radians);
@@ -569,12 +585,16 @@
                     .attr('y1', spineY)
                     .attr('x2', endX)
                     .attr('y2', endY)
-                    .attr('class', 'fishbone-branch');
+                    .attr('class', `fishbone-branch ${fin.position === 'bottom' ? 'bottom' : ''}`);
+
+                // Position labels based on whether fin is top or bottom
+                const labelY = fin.position === 'top' ? endY - 10 : endY + 20;
+                const descY = fin.position === 'top' ? endY + 5 : endY + 35;
 
                 // Draw label
                 svg.append('text')
                     .attr('x', endX - 10)
-                    .attr('y', endY - 10)
+                    .attr('y', labelY)
                     .attr('class', 'fin-label')
                     .attr('text-anchor', 'end')
                     .text(fin.text);
@@ -583,43 +603,7 @@
                 if (fin.description) {
                     svg.append('text')
                         .attr('x', endX - 10)
-                        .attr('y', endY + 5)
-                        .attr('class', 'fin-description')
-                        .attr('text-anchor', 'end')
-                        .text(fin.description.substring(0, 30) + (fin.description.length > 30 ? '...' : ''));
-                }
-            });
-
-            // Draw bottom fins
-            diagramData.bottomFins.forEach((fin, index) => {
-                const x = spineStartX + (index + 1) * finSpacing;
-                const finLength = 80;
-                const finAngle = 45; // degrees
-                const radians = (finAngle * Math.PI) / 180;
-                const endX = x + finLength * Math.cos(radians);
-                const endY = spineY + finLength * Math.sin(radians);
-
-                // Draw branch line
-                svg.append('line')
-                    .attr('x1', x)
-                    .attr('y1', spineY)
-                    .attr('x2', endX)
-                    .attr('y2', endY)
-                    .attr('class', 'fishbone-branch bottom');
-
-                // Draw label
-                svg.append('text')
-                    .attr('x', endX - 10)
-                    .attr('y', endY + 20)
-                    .attr('class', 'fin-label')
-                    .attr('text-anchor', 'end')
-                    .text(fin.text);
-
-                // Draw description if exists
-                if (fin.description) {
-                    svg.append('text')
-                        .attr('x', endX - 10)
-                        .attr('y', endY + 35)
+                        .attr('y', descY)
                         .attr('class', 'fin-description')
                         .attr('text-anchor', 'end')
                         .text(fin.description.substring(0, 30) + (fin.description.length > 30 ? '...' : ''));
