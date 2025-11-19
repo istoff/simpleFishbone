@@ -306,13 +306,8 @@
                 </div>
 
                 <div class="control-section">
-                    <h3>Top Fins (Drag to Reorder)</h3>
-                    <div id="top-fins-list" class="fin-list"></div>
-                </div>
-
-                <div class="control-section">
-                    <h3>Bottom Fins (Drag to Reorder)</h3>
-                    <div id="bottom-fins-list" class="fin-list"></div>
+                    <h3>All Fins (Drag to Reorder Timeline)</h3>
+                    <div id="fins-list" class="fin-list"></div>
                 </div>
 
                 <div class="control-section">
@@ -346,8 +341,7 @@
             mainEffect: "Problem or Effect",
             caption: "Fishbone Diagram - Cause and Effect Analysis",
             description: "Use this diagram to identify and organize potential causes of a problem",
-            topFins: [],
-            bottomFins: []
+            fins: [] // Combined array with position property for each fin
         };
 
         // Initialize
@@ -370,14 +364,11 @@
             const fin = {
                 id: Date.now(),
                 text: text,
-                description: description
+                description: description,
+                position: position // Store whether it's top or bottom
             };
 
-            if (position === 'top') {
-                diagramData.topFins.push(fin);
-            } else {
-                diagramData.bottomFins.push(fin);
-            }
+            diagramData.fins.push(fin);
 
             // Clear inputs
             document.getElementById(textId).value = '';
@@ -388,46 +379,36 @@
         }
 
         // Remove fin function
-        function removeFin(position, id) {
-            if (position === 'top') {
-                diagramData.topFins = diagramData.topFins.filter(f => f.id !== id);
-            } else {
-                diagramData.bottomFins = diagramData.bottomFins.filter(f => f.id !== id);
-            }
+        function removeFin(id) {
+            diagramData.fins = diagramData.fins.filter(f => f.id !== id);
             renderFinLists();
             updateDiagram();
         }
 
         // Render fin lists with drag-and-drop
         function renderFinLists() {
-            renderFinList('top-fins-list', diagramData.topFins, 'top');
-            renderFinList('bottom-fins-list', diagramData.bottomFins, 'bottom');
-        }
-
-        function renderFinList(containerId, fins, position) {
-            const container = document.getElementById(containerId);
+            const container = document.getElementById('fins-list');
             container.innerHTML = '';
 
-            if (fins.length === 0) {
+            if (diagramData.fins.length === 0) {
                 container.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No fins yet</p>';
                 return;
             }
 
-            fins.forEach((fin, index) => {
+            diagramData.fins.forEach((fin, index) => {
                 const finDiv = document.createElement('div');
-                finDiv.className = `fin-item ${position}`;
+                finDiv.className = `fin-item ${fin.position}`;
                 finDiv.draggable = true;
                 finDiv.dataset.id = fin.id;
-                finDiv.dataset.position = position;
                 finDiv.dataset.index = index;
 
                 finDiv.innerHTML = `
                     <div class="fin-content">
-                        <div class="fin-text">${fin.text}</div>
+                        <div class="fin-text">${fin.text} <span style="font-size: 10px; color: #999;">[${fin.position}]</span></div>
                         ${fin.description ? `<div class="fin-desc">${fin.description}</div>` : ''}
                     </div>
                     <div class="fin-actions">
-                        <button class="btn-small" onclick="removeFin('${position}', ${fin.id})">Delete</button>
+                        <button class="btn-small" onclick="removeFin(${fin.id})">Delete</button>
                     </div>
                 `;
 
@@ -464,14 +445,13 @@
                 e.stopPropagation();
             }
 
-            if (draggedElement !== this && draggedElement.dataset.position === this.dataset.position) {
-                const position = this.dataset.position;
+            if (draggedElement !== this) {
                 const fromIndex = parseInt(draggedElement.dataset.index);
                 const toIndex = parseInt(this.dataset.index);
 
-                const fins = position === 'top' ? diagramData.topFins : diagramData.bottomFins;
-                const [movedFin] = fins.splice(fromIndex, 1);
-                fins.splice(toIndex, 0, movedFin);
+                // Move the fin in the unified array
+                const [movedFin] = diagramData.fins.splice(fromIndex, 1);
+                diagramData.fins.splice(toIndex, 0, movedFin);
 
                 renderFinLists();
                 updateDiagram();
@@ -559,28 +539,15 @@
                 .attr('text-anchor', 'middle')
                 .text(effectText);
 
-            // Combine all fins into a single timeline array
-            const allFins = [];
+            // Use the unified fins array directly (already in user-defined order)
+            const allFins = diagramData.fins;
 
-            // Add top fins with position marker
-            diagramData.topFins.forEach(fin => {
-                allFins.push({ ...fin, position: 'top' });
-            });
-
-            // Add bottom fins with position marker
-            diagramData.bottomFins.forEach(fin => {
-                allFins.push({ ...fin, position: 'bottom' });
-            });
-
-            // Sort by timestamp (id) to get chronological order
-            allFins.sort((a, b) => a.id - b.id);
-
-            // Calculate spacing for fins based on total combined fins
+            // Calculate spacing for fins based on total fins
             const totalFins = allFins.length;
             const spineLength = spineEndX - spineStartX - 50;
             const finSpacing = totalFins > 0 ? spineLength / (totalFins + 1) : 0;
 
-            // Draw all fins in chronological order
+            // Draw all fins in the order they appear in the array
             allFins.forEach((fin, index) => {
                 const x = spineStartX + (index + 1) * finSpacing;
                 const finLength = 80;
@@ -658,11 +625,36 @@
                     const loadedData = JSON.parse(e.target.result);
 
                     // Validate the loaded data structure
-                    if (loadedData.mainEffect !== undefined &&
-                        Array.isArray(loadedData.topFins) &&
-                        Array.isArray(loadedData.bottomFins)) {
+                    if (loadedData.mainEffect !== undefined) {
+                        // Check if it's the new format (single fins array)
+                        if (Array.isArray(loadedData.fins)) {
+                            diagramData = loadedData;
+                        }
+                        // Handle old format (separate topFins and bottomFins arrays)
+                        else if (Array.isArray(loadedData.topFins) && Array.isArray(loadedData.bottomFins)) {
+                            // Convert old format to new format
+                            diagramData = {
+                                mainEffect: loadedData.mainEffect,
+                                caption: loadedData.caption || "Fishbone Diagram - Cause and Effect Analysis",
+                                description: loadedData.description || "Use this diagram to identify and organize potential causes of a problem",
+                                fins: []
+                            };
 
-                        diagramData = loadedData;
+                            // Combine top and bottom fins, sorted by timestamp
+                            const combinedFins = [];
+                            loadedData.topFins.forEach(fin => {
+                                combinedFins.push({ ...fin, position: 'top' });
+                            });
+                            loadedData.bottomFins.forEach(fin => {
+                                combinedFins.push({ ...fin, position: 'bottom' });
+                            });
+                            // Sort by timestamp (id) to maintain chronological order
+                            combinedFins.sort((a, b) => a.id - b.id);
+                            diagramData.fins = combinedFins;
+                        } else {
+                            alert('Invalid file format. Please load a valid fishbone diagram JSON file.');
+                            return;
+                        }
 
                         // Update the main effect input field
                         document.getElementById('main-effect').value = diagramData.mainEffect;
