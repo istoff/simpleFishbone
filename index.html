@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D3.js Fishbone Diagram Creator</title>
+    <title>D3.js Timeline Diagram Creator</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         * {
@@ -264,55 +264,53 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🐟 Fishbone Diagram Creator</h1>
-            <p>Create interactive fishbone diagrams with drag-and-drop timeline reordering</p>
+            <h1>🐟 Timeline Diagram Creator</h1>
+            <p>Create interactive timeline diagrams with flexible top/bottom event placement and drag-and-drop reordering</p>
         </div>
 
         <div class="content">
             <div class="controls">
                 <div class="control-section">
-                    <h3>Main Effect</h3>
+                    <h3>Timeline Outcome</h3>
                     <div class="input-group">
-                        <label for="main-effect">Effect/Problem Statement</label>
-                        <input type="text" id="main-effect" placeholder="Enter the main effect or problem">
+                        <label for="main-effect">Outcome/Goal/Result</label>
+                        <input type="text" id="main-effect" placeholder="Enter the outcome or goal">
                     </div>
-                    <button onclick="updateDiagram()">Update Effect</button>
+                    <button onclick="updateDiagram()">Update Outcome</button>
                 </div>
 
                 <div class="control-section">
-                    <h3>Add Top Fin</h3>
+                    <h3>Add Top Event</h3>
                     <div class="input-group">
-                        <label for="top-fin-text">Fin Label</label>
-                        <input type="text" id="top-fin-text" placeholder="e.g., Materials">
+                        <label for="top-fin-text">Event Label</label>
+                        <input type="text" id="top-fin-text" placeholder="e.g., Phase 1 Launch">
                     </div>
                     <div class="input-group">
                         <label for="top-fin-desc">Description</label>
                         <textarea id="top-fin-desc" placeholder="Optional description"></textarea>
                     </div>
-                    <button onclick="addFin('top')">Add Top Fin</button>
+                    <button onclick="addFin('top')">Add Top Event</button>
                 </div>
 
                 <div class="control-section">
-                    <h3>Add Bottom Fin</h3>
+                    <h3>Add Bottom Event</h3>
                     <div class="input-group">
-                        <label for="bottom-fin-text">Fin Label</label>
-                        <input type="text" id="bottom-fin-text" placeholder="e.g., Methods">
+                        <label for="bottom-fin-text">Event Label</label>
+                        <input type="text" id="bottom-fin-text" placeholder="e.g., Planning Complete">
                     </div>
                     <div class="input-group">
                         <label for="bottom-fin-desc">Description</label>
                         <textarea id="bottom-fin-desc" placeholder="Optional description"></textarea>
                     </div>
-                    <button onclick="addFin('bottom')">Add Bottom Fin</button>
+                    <button onclick="addFin('bottom')">Add Bottom Event</button>
                 </div>
 
                 <div class="control-section">
-                    <h3>Top Fins (Drag to Reorder)</h3>
-                    <div id="top-fins-list" class="fin-list"></div>
-                </div>
-
-                <div class="control-section">
-                    <h3>Bottom Fins (Drag to Reorder)</h3>
-                    <div id="bottom-fins-list" class="fin-list"></div>
+                    <h3>Timeline Events (Drag to Reorder)</h3>
+                    <p style="font-size: 12px; color: #666; margin-bottom: 10px;">
+                        ↑ = Top event, ↓ = Bottom event. Drag to arrange in timeline order.
+                    </p>
+                    <div id="fins-list" class="fin-list"></div>
                 </div>
             </div>
 
@@ -320,9 +318,10 @@
                 <div class="diagram-info">
                     <h4>📊 How to Use</h4>
                     <p>
-                        <strong>Add Fins:</strong> Use the controls on the left to add causes to the top or bottom of the fishbone.<br>
-                        <strong>Reorder:</strong> Drag and drop fins in the lists to change their timeline sequence.<br>
-                        <strong>Remove:</strong> Click the delete button on any fin to remove it.
+                        <strong>Add Events:</strong> Add events to the top or bottom of the timeline using the controls on the left.<br>
+                        <strong>Reorder:</strong> Drag and drop events in the combined list to arrange them in your desired timeline sequence.<br>
+                        <strong>Remove:</strong> Click the delete button on any event to remove it.<br>
+                        <strong>Mix &amp; Match:</strong> You can have multiple bottom events, then top events, in any order you like!
                     </p>
                 </div>
                 <svg id="fishbone-svg"></svg>
@@ -333,11 +332,10 @@
     <script>
         // Data structure
         let diagramData = {
-            mainEffect: "Problem or Effect",
-            caption: "Fishbone Diagram - Cause and Effect Analysis",
-            description: "Use this diagram to identify and organize potential causes of a problem",
-            topFins: [],
-            bottomFins: []
+            mainEffect: "Outcome or Goal",
+            caption: "Timeline Diagram - Event Sequence Visualization",
+            description: "Use this diagram to visualize events in chronological order along a timeline",
+            fins: [] // Combined array with position property for each fin
         };
 
         // Initialize
@@ -360,14 +358,11 @@
             const fin = {
                 id: Date.now(),
                 text: text,
-                description: description
+                description: description,
+                position: position
             };
 
-            if (position === 'top') {
-                diagramData.topFins.push(fin);
-            } else {
-                diagramData.bottomFins.push(fin);
-            }
+            diagramData.fins.push(fin);
 
             // Clear inputs
             document.getElementById(textId).value = '';
@@ -378,46 +373,36 @@
         }
 
         // Remove fin function
-        function removeFin(position, id) {
-            if (position === 'top') {
-                diagramData.topFins = diagramData.topFins.filter(f => f.id !== id);
-            } else {
-                diagramData.bottomFins = diagramData.bottomFins.filter(f => f.id !== id);
-            }
+        function removeFin(id) {
+            diagramData.fins = diagramData.fins.filter(f => f.id !== id);
             renderFinLists();
             updateDiagram();
         }
 
         // Render fin lists with drag-and-drop
         function renderFinLists() {
-            renderFinList('top-fins-list', diagramData.topFins, 'top');
-            renderFinList('bottom-fins-list', diagramData.bottomFins, 'bottom');
-        }
-
-        function renderFinList(containerId, fins, position) {
-            const container = document.getElementById(containerId);
+            const container = document.getElementById('fins-list');
             container.innerHTML = '';
 
-            if (fins.length === 0) {
-                container.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No fins yet</p>';
+            if (diagramData.fins.length === 0) {
+                container.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No fins yet. Add fins using the controls above.</p>';
                 return;
             }
 
-            fins.forEach((fin, index) => {
+            diagramData.fins.forEach((fin, index) => {
                 const finDiv = document.createElement('div');
-                finDiv.className = `fin-item ${position}`;
+                finDiv.className = `fin-item ${fin.position}`;
                 finDiv.draggable = true;
                 finDiv.dataset.id = fin.id;
-                finDiv.dataset.position = position;
                 finDiv.dataset.index = index;
 
                 finDiv.innerHTML = `
                     <div class="fin-content">
-                        <div class="fin-text">${fin.text}</div>
+                        <div class="fin-text">${fin.position === 'top' ? '↑' : '↓'} ${fin.text}</div>
                         ${fin.description ? `<div class="fin-desc">${fin.description}</div>` : ''}
                     </div>
                     <div class="fin-actions">
-                        <button class="btn-small" onclick="removeFin('${position}', ${fin.id})">Delete</button>
+                        <button class="btn-small" onclick="removeFin(${fin.id})">Delete</button>
                     </div>
                 `;
 
@@ -454,14 +439,12 @@
                 e.stopPropagation();
             }
 
-            if (draggedElement !== this && draggedElement.dataset.position === this.dataset.position) {
-                const position = this.dataset.position;
+            if (draggedElement !== this) {
                 const fromIndex = parseInt(draggedElement.dataset.index);
                 const toIndex = parseInt(this.dataset.index);
 
-                const fins = position === 'top' ? diagramData.topFins : diagramData.bottomFins;
-                const [movedFin] = fins.splice(fromIndex, 1);
-                fins.splice(toIndex, 0, movedFin);
+                const [movedFin] = diagramData.fins.splice(fromIndex, 1);
+                diagramData.fins.splice(toIndex, 0, movedFin);
 
                 renderFinLists();
                 updateDiagram();
@@ -549,29 +532,13 @@
                 .attr('text-anchor', 'middle')
                 .text(effectText);
 
-            // Combine all fins into a single timeline array
-            const allFins = [];
-
-            // Add top fins with position marker
-            diagramData.topFins.forEach(fin => {
-                allFins.push({ ...fin, position: 'top' });
-            });
-
-            // Add bottom fins with position marker
-            diagramData.bottomFins.forEach(fin => {
-                allFins.push({ ...fin, position: 'bottom' });
-            });
-
-            // Sort by timestamp (id) to get chronological order
-            allFins.sort((a, b) => a.id - b.id);
-
             // Calculate spacing for fins based on total combined fins
-            const totalFins = allFins.length;
+            const totalFins = diagramData.fins.length;
             const spineLength = spineEndX - spineStartX - 50;
             const finSpacing = totalFins > 0 ? spineLength / (totalFins + 1) : 0;
 
-            // Draw all fins in chronological order
-            allFins.forEach((fin, index) => {
+            // Draw all fins in their current order
+            diagramData.fins.forEach((fin, index) => {
                 const x = spineStartX + (index + 1) * finSpacing;
                 const finLength = 80;
                 const finAngle = fin.position === 'top' ? -45 : 45; // degrees
