@@ -547,8 +547,8 @@
             const spineLength = spineEndX - spineStartX - 50;
             const finSpacing = totalFins > 0 ? spineLength / (totalFins + 1) : 0;
 
-            // Draw all fins in the order they appear in the array
-            allFins.forEach((fin, index) => {
+            // First pass: Calculate all fin positions and initial label positions
+            const finData = allFins.map((fin, index) => {
                 const x = spineStartX + (index + 1) * finSpacing;
                 const finLength = 80;
                 const finAngle = fin.position === 'top' ? -45 : 45; // degrees
@@ -556,34 +556,100 @@
                 const endX = x + finLength * Math.cos(radians);
                 const endY = spineY + finLength * Math.sin(radians);
 
-                // Draw branch line
-                svg.append('line')
-                    .attr('x1', x)
-                    .attr('y1', spineY)
-                    .attr('x2', endX)
-                    .attr('y2', endY)
-                    .attr('class', `fishbone-branch ${fin.position === 'bottom' ? 'bottom' : ''}`);
-
-                // Position labels based on whether fin is top or bottom
+                // Initial label positions
                 const labelY = fin.position === 'top' ? endY - 10 : endY + 20;
                 const descY = fin.position === 'top' ? endY + 5 : endY + 35;
 
-                // Draw label
+                return {
+                    fin,
+                    x,
+                    endX,
+                    endY,
+                    labelY,
+                    descY,
+                    labelText: fin.text,
+                    descText: fin.description ? fin.description.substring(0, 30) + (fin.description.length > 30 ? '...' : '') : null
+                };
+            });
+
+            // Helper function to check if two labels overlap
+            function labelsOverlap(label1, label2) {
+                // Estimate text width (rough approximation: 8px per character)
+                const label1Width = label1.labelText.length * 8;
+                const label2Width = label2.labelText.length * 8;
+
+                // Check horizontal overlap
+                const xOverlap = Math.abs(label1.endX - label2.endX) < Math.max(label1Width, label2Width);
+
+                // Check vertical overlap (label height ~20px for label + 15px for description)
+                const label1Bottom = label1.descText ? label1.descY + 10 : label1.labelY + 10;
+                const label2Bottom = label2.descText ? label2.descY + 10 : label2.labelY + 10;
+                const label1Top = label1.labelY - 10;
+                const label2Top = label2.labelY - 10;
+
+                const yOverlap = !(label1Bottom < label2Top || label2Bottom < label1Top);
+
+                return xOverlap && yOverlap;
+            }
+
+            // Adjust label positions to prevent overlaps for each position type separately
+            function adjustLabelPositions(labels, position) {
+                const positionLabels = labels.filter(l => l.fin.position === position);
+
+                for (let i = 0; i < positionLabels.length - 1; i++) {
+                    for (let j = i + 1; j < positionLabels.length; j++) {
+                        const label1 = positionLabels[i];
+                        const label2 = positionLabels[j];
+
+                        if (labelsOverlap(label1, label2)) {
+                            // Calculate required offset
+                            const label1Height = label1.descText ? 50 : 25;
+                            const label2Height = label2.descText ? 50 : 25;
+                            const requiredSpacing = Math.max(label1Height, label2Height);
+
+                            // Offset label2 away from the spine
+                            if (position === 'top') {
+                                label2.labelY -= requiredSpacing;
+                                label2.descY -= requiredSpacing;
+                            } else {
+                                label2.labelY += requiredSpacing;
+                                label2.descY += requiredSpacing;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Apply collision detection and adjustment
+            adjustLabelPositions(finData, 'top');
+            adjustLabelPositions(finData, 'bottom');
+
+            // Second pass: Draw all fins and labels with adjusted positions
+            finData.forEach(data => {
+                // Draw branch line
+                svg.append('line')
+                    .attr('x1', data.x)
+                    .attr('y1', spineY)
+                    .attr('x2', data.endX)
+                    .attr('y2', data.endY)
+                    .attr('class', `fishbone-branch ${data.fin.position === 'bottom' ? 'bottom' : ''}`);
+
+                // Draw label with adjusted position
                 svg.append('text')
-                    .attr('x', endX - 10)
-                    .attr('y', labelY)
+                    .attr('x', data.endX - 10)
+                    .attr('y', data.labelY)
                     .attr('class', 'fin-label')
                     .attr('text-anchor', 'end')
-                    .text(fin.text);
+                    .text(data.labelText);
 
-                // Draw description if exists
-                if (fin.description) {
+                // Draw description if exists with adjusted position
+                if (data.descText) {
                     svg.append('text')
-                        .attr('x', endX - 10)
-                        .attr('y', descY)
+                        .attr('x', data.endX - 10)
+                        .attr('y', data.descY)
                         .attr('class', 'fin-description')
                         .attr('text-anchor', 'end')
-                        .text(fin.description.substring(0, 30) + (fin.description.length > 30 ? '...' : ''));
+                        .text(data.descText);
                 }
             });
 
